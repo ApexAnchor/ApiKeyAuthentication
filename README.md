@@ -1,24 +1,63 @@
 # Authentication Mechanism with API Key
 
-This document provides information on how to authenticate with our API using an API key for .NET Web APis
+This repository demonstrates two approaches for API key authentication in a web API: Middleware and Auth Filter.
 
 ## API Key Authentication
 
-To interact with our API, you need to include an API key in your requests. The API key serves as a secure and easy way to authenticate and authorize your requests.
+To interact with our API, you need to include an API key in your requests as part of header. The API key serves as a secure and easy way to authenticate and authorize your requests.
 
-### Obtaining an API Key
+# API Key Authentication for Web API Requests
 
-1. **Sign Up:**
-   If you don't have an account, sign up on our platform to obtain API access.
+## Middleware Approach
 
-2. **Navigate to API Settings:**
-   Once signed in, navigate to your account settings or API settings page.
+   ```csharp
+   // ApiKeyMiddleware.cs
+   public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+{
+    if (!context.Request.Headers.TryGetValue(AuthConstants.AuthenticationHeader,
+        out var apiKey))
+    {
+        context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+        await context.Response.WriteAsync("Api Key is missing!!");
+        return;
+    }
 
-3. **Generate API Key:**
-   Generate a new API key. You may need to provide some details or follow specific steps during the key generation process.
+    var key = _configuration.GetValue<string>(AuthConstants.ApiKeySectionName);
 
-4. **Keep it Secure:**
-   Treat your API key like a password. Keep it confidential and do not share it publicly.
+    if (key != apiKey)
+    {
+        context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+        await context.Response.WriteAsync("Invalid Api Key!!");
+        return;
+    }
+
+    await next(context);
+}
+ ```
+
+## Authorization Filter Approach
+ ```csharp
+ public Task OnAuthorizationAsync(AuthorizationFilterContext context)
+ {
+     if (!context.HttpContext.Request.Headers.TryGetValue(AuthConstants.AuthenticationHeader,
+         out var apiKey))
+     {
+         context.Result = new UnauthorizedObjectResult("Api Key is missing!!");
+         return Task.CompletedTask;
+     }
+
+     var key = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>().
+               GetValue<string>(AuthConstants.ApiKeySectionName);
+
+     if (key != apiKey)
+     {
+         context.Result = new UnauthorizedObjectResult("Invalid Api Key!!");
+         return Task.CompletedTask;
+     }
+
+     return Task.CompletedTask;
+ }
+ ```
 
 ### Including the API Key in Requests
 
@@ -27,5 +66,5 @@ When making requests to our API, include the API key in the request header as fo
 ```http
 GET /api/endpoint
 Host: api.example.com
-Authorization: ApiKey YOUR_API_KEY
+X-API-KEY: ApiKey YOUR_API_KEY
 
